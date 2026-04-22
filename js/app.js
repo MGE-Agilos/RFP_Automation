@@ -2,16 +2,7 @@
 // Requires: config.js (globals), supabase CDN, marked CDN, bootstrap CDN
 
 const { createClient } = window.supabase;
-const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON, {
-  global: {
-    fetch: (url, options = {}) => {
-      const headers = new Headers(options.headers ?? {});
-      if (!headers.has("Accept-Profile"))  headers.set("Accept-Profile",  "rfp");
-      if (!headers.has("Content-Profile")) headers.set("Content-Profile", "rfp");
-      return fetch(url, { ...options, headers });
-    },
-  },
-});
+const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON);
 
 // ── State ─────────────────────────────────────────────────────
 let markets     = [];
