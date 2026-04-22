@@ -3,9 +3,13 @@
 
 const { createClient } = window.supabase;
 const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON, {
-  db: { schema: "rfp" },
+  global: {
+    headers: {
+      "Accept-Profile": "rfp",
+      "Content-Profile": "rfp",
+    },
+  },
 });
-window._db = db; // debug: expose globally
 
 // ── State ─────────────────────────────────────────────────────
 let markets     = [];
@@ -18,9 +22,6 @@ let realtimeSub  = null;
 document.addEventListener("DOMContentLoaded", async () => {
   setupFilters();
   setupSearch();
-  // debug
-  const _test = await db.from("markets").select("id").limit(1);
-  console.log("DB TEST:", JSON.stringify(_test));
   await loadMarkets();
   await loadStats();
   await loadLastScan();
@@ -37,11 +38,7 @@ async function loadMarkets() {
   if (activeCategory) q = q.eq("category", activeCategory);
 
   const { data, error } = await q;
-  if (error) {
-    console.error("loadMarkets error:", error);
-    showToast("Erreur chargement : " + (error.message || JSON.stringify(error)), "danger");
-    return;
-  }
+  if (error) { console.error(error); return; }
   markets = data ?? [];
   renderMarkets(applySearch(markets));
 }
