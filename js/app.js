@@ -2,14 +2,7 @@
 // Requires: config.js (globals), supabase CDN, marked CDN, bootstrap CDN
 
 const { createClient } = window.supabase;
-const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON, {
-  global: {
-    headers: {
-      "Accept-Profile": "rfp",
-      "Content-Profile": "rfp",
-    },
-  },
-});
+const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON);
 
 // ── State ─────────────────────────────────────────────────────
 let markets     = [];
@@ -30,7 +23,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 // ── Data ──────────────────────────────────────────────────────
 async function loadMarkets() {
-  let q = db.from("markets").select("*").order("created_at", { ascending: false });
+  let q = db.schema("rfp").from("markets").select("*").order("created_at", { ascending: false });
   if (activeFilter === "relevant")     q = q.eq("is_relevant", true);
   else if (activeFilter === "not_relevant") q = q.eq("is_relevant", false);
   else if (activeFilter === "pending") q = q.in("status", ["pending","analyzing"]);
@@ -45,11 +38,11 @@ async function loadMarkets() {
 
 async function loadStats() {
   const [tot, rel, nrel, pend, rfp] = await Promise.all([
-    db.from("markets").select("id", { count: "exact", head: true }),
-    db.from("markets").select("id", { count: "exact", head: true }).eq("is_relevant", true),
-    db.from("markets").select("id", { count: "exact", head: true }).eq("is_relevant", false),
-    db.from("markets").select("id", { count: "exact", head: true }).in("status", ["pending","analyzing"]),
-    db.from("markets").select("id", { count: "exact", head: true }).not("rfp_content", "is", null),
+    db.schema("rfp").from("markets").select("id", { count: "exact", head: true }),
+    db.schema("rfp").from("markets").select("id", { count: "exact", head: true }).eq("is_relevant", true),
+    db.schema("rfp").from("markets").select("id", { count: "exact", head: true }).eq("is_relevant", false),
+    db.schema("rfp").from("markets").select("id", { count: "exact", head: true }).in("status", ["pending","analyzing"]),
+    db.schema("rfp").from("markets").select("id", { count: "exact", head: true }).not("rfp_content", "is", null),
   ]);
   document.getElementById("stat-total").textContent      = tot.count  ?? 0;
   document.getElementById("stat-relevant").textContent   = rel.count  ?? 0;
@@ -59,7 +52,7 @@ async function loadStats() {
 }
 
 async function loadLastScan() {
-  const { data } = await db.from("portal_scans")
+  const { data } = await db.schema("rfp").from("portal_scans")
     .select("scanned_at, markets_new")
     .order("scanned_at", { ascending: false })
     .limit(1)
@@ -328,7 +321,7 @@ function downloadRFP(m) {
 
 // ── Actions ───────────────────────────────────────────────────
 async function triggerAnalysis(id) {
-  await db.from("markets").update({ status: "analyzing" }).eq("id", id);
+  await db.schema("rfp").from("markets").update({ status: "analyzing" }).eq("id", id);
   callFunction("process-market", { market_id: id }).catch((e) => {
     console.error(e);
     showToast("Erreur lors de l'analyse", "danger");
@@ -337,7 +330,7 @@ async function triggerAnalysis(id) {
 
 async function deleteMarket(id) {
   if (!confirm("Supprimer ce marché et son RFP ?")) return;
-  await db.from("markets").delete().eq("id", id);
+  await db.schema("rfp").from("markets").delete().eq("id", id);
   markets = markets.filter((m) => m.id !== id);
   renderMarkets(applySearch(markets));
   await loadStats();
