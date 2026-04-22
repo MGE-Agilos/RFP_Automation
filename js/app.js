@@ -2,7 +2,9 @@
 // Requires: config.js (globals), supabase CDN, marked CDN, bootstrap CDN
 
 const { createClient } = window.supabase;
-const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON);
+const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON, {
+  db: { schema: "rfp" },
+});
 
 // ── State ─────────────────────────────────────────────────────
 let markets     = [];

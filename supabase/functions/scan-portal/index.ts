@@ -166,7 +166,8 @@ serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { db: { schema: "rfp" } }
     );
 
     // Fetch existing market IDs to avoid inserting duplicates
