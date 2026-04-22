@@ -5,6 +5,7 @@ const { createClient } = window.supabase;
 const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON, {
   db: { schema: "rfp" },
 });
+window._db = db; // debug: expose globally
 
 // ── State ─────────────────────────────────────────────────────
 let markets     = [];
@@ -17,6 +18,9 @@ let realtimeSub  = null;
 document.addEventListener("DOMContentLoaded", async () => {
   setupFilters();
   setupSearch();
+  // debug
+  const _test = await db.from("markets").select("id").limit(1);
+  console.log("DB TEST:", JSON.stringify(_test));
   await loadMarkets();
   await loadStats();
   await loadLastScan();
