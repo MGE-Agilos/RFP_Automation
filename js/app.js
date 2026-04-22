@@ -70,7 +70,7 @@ async function loadLastScan() {
 function subscribeRealtime() {
   if (realtimeSub) db.removeChannel(realtimeSub);
   realtimeSub = db.channel("markets-rt")
-    .on("postgres_changes", { event: "*", schema: "public", table: "markets" }, async (payload) => {
+    .on("postgres_changes", { event: "*", schema: "rfp", table: "markets" }, async (payload) => {
       await loadMarkets();
       await loadStats();
       // Refresh detail modal if it's showing the updated market
