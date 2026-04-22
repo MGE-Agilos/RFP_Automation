@@ -33,7 +33,11 @@ async function loadMarkets() {
   if (activeCategory) q = q.eq("category", activeCategory);
 
   const { data, error } = await q;
-  if (error) { console.error(error); return; }
+  if (error) {
+    console.error("loadMarkets error:", error);
+    showToast("Erreur chargement : " + (error.message || JSON.stringify(error)), "danger");
+    return;
+  }
   markets = data ?? [];
   renderMarkets(applySearch(markets));
 }
