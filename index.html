@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RFP Automation — Agilos</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="bg-light">
+
+<!-- ═══════════════════════════════ NAVBAR ═══════════════════════════════════ -->
+<nav class="navbar navbar-dark bg-agilos px-4 py-2 sticky-top shadow-sm">
+  <span class="navbar-brand fw-bold d-flex align-items-center gap-2">
+    <i class="bi bi-robot fs-5"></i>
+    <span>RFP Automation</span>
+    <span class="badge bg-white text-agilos" style="font-size:.6rem;letter-spacing:.05em">AGILOS</span>
+  </span>
+
+  <div class="d-flex align-items-center gap-3">
+    <!-- Last scan info -->
+    <span class="text-white-50 small d-none d-md-inline" id="last-scan-label"></span>
+    <!-- Scan button -->
+    <button id="btn-scan" class="btn btn-sm btn-light fw-semibold" onclick="scanPortal()">
+      <i class="bi bi-cloud-download me-1"></i>Scanner le portail
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════ STATS BAR ════════════════════════════════ -->
+<div class="border-bottom bg-white shadow-sm">
+  <div class="container-fluid px-4 py-3">
+    <div class="row g-2 justify-content-start">
+      <div class="col-auto"><div class="stat-card px-3 py-2 text-center">
+        <div class="stat-number" id="stat-total">—</div>
+        <div class="stat-label">Marchés</div>
+      </div></div>
+      <div class="col-auto"><div class="stat-card px-3 py-2 text-center border-success">
+        <div class="stat-number text-success" id="stat-relevant">—</div>
+        <div class="stat-label">Pertinents</div>
+      </div></div>
+      <div class="col-auto"><div class="stat-card px-3 py-2 text-center border-danger">
+        <div class="stat-number text-danger" id="stat-irrelevant">—</div>
+        <div class="stat-label">Non pertinents</div>
+      </div></div>
+      <div class="col-auto"><div class="stat-card px-3 py-2 text-center border-warning">
+        <div class="stat-number text-warning" id="stat-pending">—</div>
+        <div class="stat-label">En analyse</div>
+      </div></div>
+      <div class="col-auto"><div class="stat-card px-3 py-2 text-center border-primary">
+        <div class="stat-number text-primary" id="stat-rfp">—</div>
+        <div class="stat-label">RFPs prêts</div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ MAIN ═════════════════════════════════════ -->
+<div class="container-fluid px-4 py-4">
+
+  <!-- Scan progress banner (hidden by default) -->
+  <div id="scan-banner" class="alert alert-info alert-dismissible d-none mb-3 py-2 px-3">
+    <span class="spinner-border spinner-border-sm me-2"></span>
+    <strong id="scan-status-text">Scan en cours…</strong>
+    <span class="ms-2 text-muted small" id="scan-progress-text"></span>
+  </div>
+
+  <!-- Filters + Search -->
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <div class="btn-group btn-group-sm" role="group">
+      <button class="btn btn-outline-secondary active" data-filter="all">
+        <i class="bi bi-grid me-1"></i>Tous
+      </button>
+      <button class="btn btn-outline-success" data-filter="relevant">
+        <i class="bi bi-check-circle me-1"></i>Pertinents
+      </button>
+      <button class="btn btn-outline-danger" data-filter="not_relevant">
+        <i class="bi bi-x-circle me-1"></i>Non pertinents
+      </button>
+      <button class="btn btn-outline-warning" data-filter="pending">
+        <i class="bi bi-hourglass-split me-1"></i>En cours
+      </button>
+      <button class="btn btn-outline-primary" data-filter="rfp">
+        <i class="bi bi-file-earmark-text me-1"></i>RFPs
+      </button>
+    </div>
+
+    <!-- Category filter -->
+    <select id="cat-filter" class="form-select form-select-sm ms-1" style="width:auto">
+      <option value="">Toutes catégories</option>
+      <option>Travaux</option>
+      <option>Services</option>
+      <option>Fournitures</option>
+    </select>
+
+    <!-- Search -->
+    <div class="ms-auto" style="min-width:220px">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+        <input type="text" id="search-input" class="form-control" placeholder="Rechercher…" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Market grid -->
+  <div class="row g-3" id="markets-grid"></div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="d-none text-center py-5">
+    <i class="bi bi-building-slash fs-1 text-muted"></i>
+    <p class="mt-3 text-muted fw-medium">Aucun marché trouvé.</p>
+    <p class="text-muted small">Cliquez sur <strong>Scanner le portail</strong> pour lancer une recherche sur pmp.b2g.etat.lu</p>
+    <button class="btn btn-primary mt-2" onclick="scanPortal()">
+      <i class="bi bi-cloud-download me-2"></i>Scanner le portail maintenant
+    </button>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════ DETAIL MODAL ══════════════════════════════ -->
+<div class="modal fade" id="detail-modal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+
+      <div class="modal-header border-0 pb-0">
+        <div class="w-100">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span id="d-category" class="badge bg-secondary"></span>
+            <span id="d-procedure" class="badge bg-light text-dark border"></span>
+            <span id="d-status" class="ms-auto"></span>
+          </div>
+          <h5 class="modal-title fw-semibold lh-sm" id="d-title"></h5>
+        </div>
+        <button type="button" class="btn-close ms-3" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body pt-2">
+        <!-- Meta row -->
+        <div class="row g-2 mb-3 text-sm">
+          <div class="col-md-4">
+            <div class="text-muted small">Autorité contractante</div>
+            <div class="fw-medium" id="d-authority"></div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Service</div>
+            <div id="d-service" class="fw-medium"></div>
+          </div>
+          <div class="col-md-2">
+            <div class="text-muted small">Date limite</div>
+            <div class="fw-semibold text-danger" id="d-deadline"></div>
+          </div>
+          <div class="col-md-2">
+            <div class="text-muted small">Référence</div>
+            <div id="d-reference"></div>
+          </div>
+          <div class="col-12">
+            <div class="text-muted small">Codes CPV</div>
+            <div id="d-cpv" class="font-monospace small"></div>
+          </div>
+          <div class="col-12">
+            <div class="text-muted small">Lien marché</div>
+            <a id="d-url" href="#" target="_blank" rel="noopener" class="small text-break"></a>
+          </div>
+        </div>
+
+        <hr class="my-2" />
+
+        <!-- Description -->
+        <div class="mb-3">
+          <div class="text-muted small mb-1 fw-semibold">Description / Objet</div>
+          <p id="d-description" class="small mb-0 lh-base"></p>
+        </div>
+
+        <!-- Analysis section (shown only when analyzed) -->
+        <div id="d-analysis-section">
+          <hr class="my-2" />
+          <div class="row g-3">
+            <div class="col-md-8">
+              <div class="text-muted small mb-1 fw-semibold">Analyse Claude</div>
+              <p id="d-reason" class="small mb-2"></p>
+              <div class="mb-2">
+                <div class="text-muted small mb-1">Compétences clés requises</div>
+                <div id="d-requirements"></div>
+              </div>
+              <div>
+                <div class="text-muted small mb-1">Consultants suggérés</div>
+                <div id="d-consultants"></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="text-muted small mb-1 fw-semibold">Score de pertinence</div>
+              <div id="d-score" class="mb-2"></div>
+              <div class="text-muted small mb-1">Type de mission</div>
+              <div id="d-market-type" class="badge bg-light text-dark border small fw-normal"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer gap-2">
+        <a id="d-btn-portal" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-box-arrow-up-right me-1"></i>Voir sur le portail
+        </a>
+        <button id="d-btn-analyze" class="btn btn-sm btn-outline-primary" onclick="reanalyzeFromDetail()">
+          <i class="bi bi-arrow-repeat me-1"></i>Ré-analyser
+        </button>
+        <button id="d-btn-rfp" class="btn btn-sm btn-success d-none" onclick="viewRFPFromDetail()">
+          <i class="bi bi-file-text me-1"></i>Voir le RFP
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary ms-auto" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ RFP MODAL ════════════════════════════════ -->
+<div class="modal fade" id="rfp-modal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-agilos text-white py-2">
+        <div>
+          <div class="small text-white-50">Réponse à l'appel d'offres</div>
+          <h5 class="modal-title fw-semibold mb-0" id="rfp-modal-title"></h5>
+        </div>
+        <button type="button" class="btn-close btn-close-white ms-3" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="rfp-body" class="rfp-content px-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-download-rfp" class="btn btn-primary btn-sm">
+          <i class="bi bi-download me-1"></i>Télécharger (.md)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ TOAST ════════════════════════════════════ -->
+<div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+
+<!-- ═══════════════════════════════ SCRIPTS ══════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script>
+  // Expose config globals for ES module
+  window.SUPABASE_URL  = SUPABASE_URL;
+  window.SUPABASE_ANON = SUPABASE_ANON;
+  window.FUNCTIONS_URL = FUNCTIONS_URL;
+</script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

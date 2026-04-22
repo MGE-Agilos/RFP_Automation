@@ -1,0 +1,54 @@
+/* ─── Brand ───────────────────────────────────────────────── */
+:root {
+  --agilos:       #1a3d7c;
+  --agilos-light: #2356a8;
+}
+.bg-agilos        { background-color: var(--agilos) !important; }
+.text-agilos      { color: var(--agilos) !important; }
+.badge.bg-agilos  { background-color: var(--agilos) !important; }
+
+/* ─── Stat cards ──────────────────────────────────────────── */
+.stat-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  min-width: 100px;
+}
+.stat-number { font-size: 1.7rem; font-weight: 700; line-height: 1.1; }
+.stat-label  { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
+
+/* ─── Market cards ────────────────────────────────────────── */
+.market-card {
+  border-radius: 12px !important;
+  cursor: pointer;
+  transition: box-shadow .15s, transform .12s;
+}
+.market-card:hover {
+  box-shadow: 0 6px 24px rgba(0,0,0,.13) !important;
+  transform: translateY(-2px);
+}
+
+/* ─── Progress bar ────────────────────────────────────────── */
+.progress        { border-radius: 99px; background: #e9ecef; }
+.progress-bar    { border-radius: 99px; }
+
+/* ─── RFP Markdown ────────────────────────────────────────── */
+.rfp-content { font-family: system-ui, sans-serif; line-height: 1.75; }
+.rfp-content h1  { font-size: 1.4rem; color: var(--agilos); }
+.rfp-content h2  { font-size: 1.1rem; color: var(--agilos-light); margin-top: 1.6rem; padding-bottom: .3rem; border-bottom: 1px solid #e5e7eb; }
+.rfp-content h3  { font-size: 1rem; font-weight: 600; }
+.rfp-content ul, .rfp-content ol { padding-left: 1.4rem; }
+.rfp-content li  { margin-bottom: .2rem; }
+.rfp-content blockquote { border-left: 3px solid var(--agilos); padding-left: 1rem; color: #555; margin: 1rem 0; }
+.rfp-content table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 1rem 0; }
+.rfp-content th,
+.rfp-content td  { border: 1px solid #dee2e6; padding: .4rem .6rem; }
+.rfp-content th  { background: #f1f3f5; font-weight: 600; }
+.rfp-content code { background: #f8f9fa; padding: .1em .3em; border-radius: 3px; font-size: .88em; }
+
+/* ─── Filter buttons ──────────────────────────────────────── */
+.btn-group .btn.active { font-weight: 600; }
+
+/* ─── Misc ────────────────────────────────────────────────── */
+.modal-xl { max-width: 950px; }
+.text-sm   { font-size: .875rem; }

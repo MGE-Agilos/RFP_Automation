@@ -1,0 +1,21 @@
+# Python / local dev
+local_dev/__pycache__/
+local_dev/*.pyc
+*.pyc
+
+# SQLite database (local data)
+data/
+
+# CV files (confidential, large)
+*.docx
+
+# Email files (personal data)
+*.msg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / IDE
+*.swp
+.vscode/
