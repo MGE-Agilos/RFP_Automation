@@ -95,6 +95,14 @@
       <option>Fournitures</option>
     </select>
 
+    <!-- Date filter -->
+    <select id="date-filter" class="form-select form-select-sm" style="width:auto">
+      <option value="all">Toutes dates</option>
+      <option value="future"><i class="bi bi-calendar-check"></i> Soumission à venir</option>
+      <option value="past">Soumission passée</option>
+      <option value="unknown">Date inconnue</option>
+    </select>
+
     <!-- Search -->
     <div class="ms-auto" style="min-width:220px">
       <div class="input-group input-group-sm">
@@ -246,12 +254,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/config.js?v=20260422"></script>
+<script src="js/config.js?v=20260423"></script>
 <script>
   window.SUPABASE_URL  = SUPABASE_URL;
   window.SUPABASE_ANON = SUPABASE_ANON;
   window.FUNCTIONS_URL = FUNCTIONS_URL;
 </script>
-<script type="module" src="js/app.js?v=20260422"></script>
+<script type="module" src="js/app.js?v=20260423"></script>
 </body>
 </html>

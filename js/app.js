@@ -8,6 +8,7 @@ const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON, { db: { schem
 let markets     = [];
 let activeFilter = "all";
 let activeCategory = "";
+let activeDateFilter = "all";
 let detailMarketId = null;   // currently open in detail modal
 let realtimeSub  = null;
 
@@ -33,7 +34,7 @@ async function loadMarkets() {
   const { data, error } = await q;
   if (error) { console.error(error); return; }
   markets = data ?? [];
-  renderMarkets(applySearch(markets));
+  renderMarkets(applyClientFilters(markets));
 }
 
 async function loadStats() {
@@ -332,7 +333,7 @@ async function deleteMarket(id) {
   if (!confirm("Supprimer ce marché et son RFP ?")) return;
   await db.from("markets").delete().eq("id", id);
   markets = markets.filter((m) => m.id !== id);
-  renderMarkets(applySearch(markets));
+  renderMarkets(applyClientFilters(markets));
   await loadStats();
 }
 
@@ -350,23 +351,54 @@ function setupFilters() {
     activeCategory = e.target.value;
     await loadMarkets();
   });
+  document.getElementById("date-filter").addEventListener("change", (e) => {
+    activeDateFilter = e.target.value;
+    renderMarkets(applyClientFilters(markets));
+  });
 }
 
 function setupSearch() {
   document.getElementById("search-input").addEventListener("input", () => {
-    renderMarkets(applySearch(markets));
+    renderMarkets(applyClientFilters(markets));
   });
 }
 
-function applySearch(list) {
+// Parse a deadline string like "15.05.2025 12h00", "15/05/2025", "2025-05-15" → Date or null
+function parseDeadline(str) {
+  if (!str) return null;
+  const s = str.trim();
+  // dd.mm.yyyy or dd/mm/yyyy
+  const dmy = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+  if (dmy) return new Date(+dmy[3], +dmy[2] - 1, +dmy[1]);
+  // yyyy-mm-dd
+  const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymd) return new Date(+ymd[1], +ymd[2] - 1, +ymd[3]);
+  // fallback
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
+function applyClientFilters(list) {
   const q = (document.getElementById("search-input")?.value ?? "").toLowerCase().trim();
-  if (!q) return list;
-  return list.filter((m) =>
-    m.title.toLowerCase().includes(q) ||
-    (m.contracting_authority ?? "").toLowerCase().includes(q) ||
-    (m.description ?? "").toLowerCase().includes(q) ||
-    (m.reference ?? "").toLowerCase().includes(q)
-  );
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  return list.filter((m) => {
+    if (q) {
+      const hit = m.title.toLowerCase().includes(q) ||
+        (m.contracting_authority ?? "").toLowerCase().includes(q) ||
+        (m.description ?? "").toLowerCase().includes(q) ||
+        (m.reference ?? "").toLowerCase().includes(q);
+      if (!hit) return false;
+    }
+    if (activeDateFilter !== "all") {
+      const d = parseDeadline(m.deadline);
+      if (activeDateFilter === "unknown") return d === null;
+      if (activeDateFilter === "future")  return d !== null && d >= now;
+      if (activeDateFilter === "past")    return d !== null && d < now;
+    }
+    return true;
+  });
 }
 
 // ── Utilities ─────────────────────────────────────────────────
