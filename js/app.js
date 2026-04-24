@@ -38,18 +38,26 @@ async function loadMarkets() {
 }
 
 async function loadStats() {
-  const [tot, rel, nrel, pend, rfp] = await Promise.all([
+  const [tot, rel, nrel, pend, rfp, deadlines] = await Promise.all([
     db.from("markets").select("id", { count: "exact", head: true }),
     db.from("markets").select("id", { count: "exact", head: true }).eq("is_relevant", true),
     db.from("markets").select("id", { count: "exact", head: true }).eq("is_relevant", false),
     db.from("markets").select("id", { count: "exact", head: true }).in("status", ["pending","analyzing"]),
     db.from("markets").select("id", { count: "exact", head: true }).not("rfp_content", "is", null),
+    db.from("markets").select("deadline, is_relevant"),
   ]);
   document.getElementById("stat-total").textContent      = tot.count  ?? 0;
   document.getElementById("stat-relevant").textContent   = rel.count  ?? 0;
   document.getElementById("stat-irrelevant").textContent = nrel.count ?? 0;
   document.getElementById("stat-pending").textContent    = pend.count ?? 0;
   document.getElementById("stat-rfp").textContent        = rfp.count  ?? 0;
+
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const rows = deadlines.data ?? [];
+  const upcomingRel   = rows.filter((r) => r.is_relevant === true  && parseDeadline(r.deadline) >= now).length;
+  const upcomingNrel  = rows.filter((r) => r.is_relevant === false && parseDeadline(r.deadline) >= now).length;
+  document.getElementById("stat-upcoming-relevant").textContent   = upcomingRel;
+  document.getElementById("stat-upcoming-irrelevant").textContent = upcomingNrel;
 }
 
 async function loadLastScan() {
