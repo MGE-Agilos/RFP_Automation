@@ -29,6 +29,7 @@ async function loadMarkets() {
   else if (activeFilter === "not_relevant") q = q.eq("is_relevant", false);
   else if (activeFilter === "pending") q = q.in("status", ["pending","analyzing"]);
   else if (activeFilter === "rfp")     q = q.not("rfp_content", "is", null);
+  else if (activeFilter === "no_go")   q = q.eq("no_go", true);
   if (activeCategory) q = q.eq("category", activeCategory);
 
   const { data, error } = await q;
@@ -38,12 +39,13 @@ async function loadMarkets() {
 }
 
 async function loadStats() {
-  const [tot, rel, nrel, pend, rfp, deadlines] = await Promise.all([
+  const [tot, rel, nrel, pend, rfp, nogo, deadlines] = await Promise.all([
     db.from("markets").select("id", { count: "exact", head: true }),
     db.from("markets").select("id", { count: "exact", head: true }).eq("is_relevant", true),
     db.from("markets").select("id", { count: "exact", head: true }).eq("is_relevant", false),
     db.from("markets").select("id", { count: "exact", head: true }).in("status", ["pending","analyzing"]),
     db.from("markets").select("id", { count: "exact", head: true }).not("rfp_content", "is", null),
+    db.from("markets").select("id", { count: "exact", head: true }).eq("no_go", true),
     db.from("markets").select("deadline, is_relevant"),
   ]);
   document.getElementById("stat-total").textContent      = tot.count  ?? 0;
@@ -51,6 +53,7 @@ async function loadStats() {
   document.getElementById("stat-irrelevant").textContent = nrel.count ?? 0;
   document.getElementById("stat-pending").textContent    = pend.count ?? 0;
   document.getElementById("stat-rfp").textContent        = rfp.count  ?? 0;
+  document.getElementById("stat-nogo").textContent       = nogo.count ?? 0;
 
   const now = new Date(); now.setHours(0, 0, 0, 0);
   const rows = deadlines.data ?? [];
@@ -168,9 +171,11 @@ function renderMarkets(list) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const { action, id } = btn.dataset;
-      if (action === "rfp")     showRFP(id);
-      if (action === "analyze") triggerAnalysis(id);
-      if (action === "delete")  deleteMarket(id);
+      if (action === "rfp")      showRFP(id);
+      if (action === "analyze")  triggerAnalysis(id);
+      if (action === "delete")   deleteMarket(id);
+      if (action === "nogo")     markNoGo(id);
+      if (action === "clearnogo") clearNoGo(id);
     });
   });
 }
@@ -180,6 +185,7 @@ const CAT_COLOR  = { Travaux: "warning", Services: "primary", Fournitures: "info
 const PROC_LABEL = { "EU.OUV": "Ouverte EU", "EU.NEG-C": "Négociée EU", "LU.OUV": "Ouverte LU", "SAD-A": "SAD" };
 
 function statusBadge(m) {
+  if (m.no_go)                  return `<span class="badge bg-dark" title="${esc(m.no_go_reason || "")}"><i class="bi bi-slash-circle me-1"></i>No-Go</span>`;
   if (m.status === "analyzing") return `<span class="badge bg-warning text-dark"><span class="spinner-grow spinner-grow-sm me-1"></span>Analyse…</span>`;
   if (m.status === "error")     return `<span class="badge bg-danger" title="${esc(m.error_message)}">Erreur</span>`;
   if (m.is_relevant === true)   return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Pertinent</span>`;
@@ -225,6 +231,9 @@ function card(m) {
             ? `<p class="small text-muted mt-2 mb-0 lh-sm">${esc(m.relevance_reason.slice(0, 110))}…</p>`
             : ""}
           ${scoreBar(m.relevance_score)}
+          ${m.no_go && m.no_go_reason
+            ? `<p class="small text-muted fst-italic mt-2 mb-0"><i class="bi bi-slash-circle me-1"></i>${esc(m.no_go_reason.slice(0, 100))}</p>`
+            : ""}
         </div>
         <div class="card-footer bg-transparent border-0 d-flex gap-2 pt-0 pb-3">
           ${analyzing
@@ -235,11 +244,19 @@ function card(m) {
                  <i class="bi bi-arrow-repeat me-1"></i>Ré-analyser
                </button>`
           }
-          ${hasRFP
+          ${hasRFP && !m.no_go
             ? `<button class="btn btn-sm btn-success" data-action="rfp" data-id="${m.id}">
                  <i class="bi bi-file-text me-1"></i>RFP
                </button>`
             : ""}
+          ${m.no_go
+            ? `<button class="btn btn-sm btn-warning" data-action="clearnogo" data-id="${m.id}" title="Annuler le No-Go">
+                 <i class="bi bi-arrow-counterclockwise me-1"></i>Annuler No-Go
+               </button>`
+            : `<button class="btn btn-sm btn-outline-dark" data-action="nogo" data-id="${m.id}" title="Marquer comme No-Go">
+                 <i class="bi bi-slash-circle me-1"></i>No-Go
+               </button>`
+          }
           <button class="btn btn-sm btn-link text-danger ms-auto p-0" data-action="delete" data-id="${m.id}" title="Supprimer">
             <i class="bi bi-trash3"></i>
           </button>
@@ -292,11 +309,21 @@ function fillDetailModal(m) {
 
   // RFP button
   const rfpBtn = document.getElementById("d-btn-rfp");
-  if (m.rfp_content) rfpBtn.classList.remove("d-none");
+  if (m.rfp_content && !m.no_go) rfpBtn.classList.remove("d-none");
   else rfpBtn.classList.add("d-none");
 
   // Analyze button
   document.getElementById("d-btn-analyze").disabled = m.status === "analyzing";
+
+  // No-Go button
+  const nogoBtn = document.getElementById("d-btn-nogo");
+  if (m.no_go) {
+    nogoBtn.innerHTML = `<i class="bi bi-arrow-counterclockwise me-1"></i>Annuler No-Go`;
+    nogoBtn.className = "btn btn-sm btn-warning";
+  } else {
+    nogoBtn.innerHTML = `<i class="bi bi-slash-circle me-1"></i>No-Go`;
+    nogoBtn.className = "btn btn-sm btn-outline-dark";
+  }
 }
 
 window.reanalyzeFromDetail = function () {
@@ -344,6 +371,27 @@ async function deleteMarket(id) {
   renderMarkets(applyClientFilters(markets));
   await loadStats();
 }
+
+async function markNoGo(id) {
+  const reason = window.prompt("Raison du No-Go (ex: méthodologie hors scope, budget insuffisant…)");
+  if (reason === null) return;
+  await db.from("markets").update({ no_go: true, no_go_reason: reason || null }).eq("id", id);
+  await loadMarkets();
+  await loadStats();
+}
+
+async function clearNoGo(id) {
+  await db.from("markets").update({ no_go: false, no_go_reason: null }).eq("id", id);
+  await loadMarkets();
+  await loadStats();
+}
+
+window.toggleNoGoFromDetail = function () {
+  if (!detailMarketId) return;
+  const m = markets.find((x) => x.id === detailMarketId);
+  if (m?.no_go) clearNoGo(detailMarketId);
+  else markNoGo(detailMarketId);
+};
 
 // ── Filters ───────────────────────────────────────────────────
 function setupFilters() {

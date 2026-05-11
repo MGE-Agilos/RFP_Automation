@@ -53,6 +53,10 @@
         <div class="stat-number text-primary" id="stat-rfp">—</div>
         <div class="stat-label">RFPs prêts</div>
       </div></div>
+      <div class="col-auto"><div class="stat-card px-3 py-2 text-center border-dark">
+        <div class="stat-number text-dark" id="stat-nogo">—</div>
+        <div class="stat-label">No-Go</div>
+      </div></div>
       <div class="col-auto ms-2" style="border-left:2px solid #dee2e6; padding-left:.75rem">
         <div class="stat-label text-muted small mb-1" style="font-size:.65rem;letter-spacing:.04em">À VENIR</div>
         <div class="d-flex gap-2">
@@ -97,6 +101,9 @@
       </button>
       <button class="btn btn-outline-primary" data-filter="rfp">
         <i class="bi bi-file-earmark-text me-1"></i>RFPs
+      </button>
+      <button class="btn btn-outline-dark" data-filter="no_go">
+        <i class="bi bi-slash-circle me-1"></i>No-Go
       </button>
     </div>
 
@@ -229,6 +236,9 @@
         </button>
         <button id="d-btn-rfp" class="btn btn-sm btn-success d-none" onclick="viewRFPFromDetail()">
           <i class="bi bi-file-text me-1"></i>Voir le RFP
+        </button>
+        <button id="d-btn-nogo" class="btn btn-sm btn-outline-dark" onclick="toggleNoGoFromDetail()">
+          <i class="bi bi-slash-circle me-1"></i>No-Go
         </button>
         <button type="button" class="btn btn-sm btn-secondary ms-auto" data-bs-dismiss="modal">Fermer</button>
       </div>

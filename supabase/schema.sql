@@ -87,3 +87,10 @@ CREATE POLICY "anon_all_markets"      ON rfp.markets      FOR ALL TO anon USING 
 -- exécuter : ALTER PUBLICATION supabase_realtime ADD TABLE rfp.markets;
 ALTER PUBLICATION supabase_realtime ADD TABLE rfp.markets;
 ALTER PUBLICATION supabase_realtime ADD TABLE rfp.portal_scans;
+
+-- ── No-Go human decision ───────────────────────────────────────
+-- Allows team to mark a market as no-go (human override, independent of Claude's relevance score).
+-- For existing deployments, run these two lines manually in SQL Editor:
+ALTER TABLE rfp.markets ADD COLUMN IF NOT EXISTS no_go        BOOLEAN DEFAULT false;
+ALTER TABLE rfp.markets ADD COLUMN IF NOT EXISTS no_go_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_rfp_markets_no_go ON rfp.markets(no_go);

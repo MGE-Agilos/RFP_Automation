@@ -111,10 +111,13 @@ async function scrapeDetailPage(url: string): Promise<DetailData> {
     return m ? m[1].trim() : "";
   }
 
-  // Deadline
-  const deadline = extractAfterLabel(
-    /Date et heure limite de remise des plis\s*:\s*([^\n|]+)/i
-  );
+  // Deadline — anchored on date format to avoid capturing the questions-deadline
+  const deadline = (() => {
+    const m = text.match(
+      /remise\s+des\s+plis[^:]*:\s*(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{4}(?:\s+\d{1,2}[h:]\d{2})?)/i
+    );
+    return m ? m[1].trim() : "";
+  })();
 
   // Full description (Objet)
   const full_description = extractAfterLabel(/Objet\s*:\s*([^\n|]{20,})/i);
@@ -289,7 +292,7 @@ ANALYSE :
 ${COMPANY_PROFILE}
 ---
 
-Rédige la réponse en Markdown, en français. Structure :
+Rédige la réponse en Markdown, en français. Agilos est une société de **conseil IT** — nous ne vendons pas de produits ou de solutions logicielles, mais des **prestations de consulting** (profils de consultants, jours/man, livrables). La réponse doit refléter cela.
 
 # RÉPONSE À L'APPEL D'OFFRES
 ## ${market.title}
@@ -299,34 +302,40 @@ Rédige la réponse en Markdown, en français. Structure :
 ---
 
 ## 1. PRÉSENTATION D'AGILOS
-[Présentation adaptée au contexte du marché — secteur public luxembourgeois, institutions EU, etc.]
+[Présentation courte adaptée au contexte — société de conseil IT belge, expertise Data & Analytics, références dans le secteur public luxembourgeois et institutions européennes]
 
 ## 2. COMPRÉHENSION DU BESOIN
-[Analyse détaillée et structurée du besoin exprimé, reformulé avec notre lecture]
+[Reformuler précisément le besoin exprimé dans l'appel d'offres : contexte client, objectifs, contraintes, livrables attendus par le pouvoir adjudicateur]
 
-## 3. SOLUTION PROPOSÉE
-[Solution technique précise : outils, technologies, approche]
+## 3. PROFILS ET ÉQUIPE PROPOSÉS
+[Pour chaque consultant Agilos proposé, décrire :
+- Nom, prénom, rôle dans la mission
+- Expertise technique et fonctionnelle spécifique au marché (outils, langages, domaines)
+- Années d'expérience, certifications pertinentes
+- 2-3 missions similaires avec résultats concrets
+- Disponibilité et modalité d'intervention (régie / forfait)]
 
-## 4. ÉQUIPE PROPOSÉE
-[Pour chaque consultant pertinent : nom, rôle, expériences similaires, disponibilité]
+## 4. PRESTATIONS ET LIVRABLES
+[Décrire précisément ce qu'Agilos s'engage à réaliser :
+- Liste des livrables concrets (rapports, dashboards, modèles de données, formations, documentations, etc.)
+- Activités incluses dans la prestation par phase
+- Modalités de transfert de compétences si applicable
+NE PAS décrire un outil ou une "solution" — décrire les PRESTATIONS que les consultants vont effectuer]
 
-## 5. MÉTHODOLOGIE
-[Phases du projet, jalons, livrables, gouvernance]
+## 5. MÉTHODOLOGIE ET PLANNING
+[Phases de la mission, jalons, livrables par phase, gouvernance, reporting, modalités de suivi]
 
 ## 6. RÉFÉRENCES PERTINENTES
-[2-3 projets similaires réalisés par Agilos avec résultats concrets]
+[2-3 projets similaires réalisés par Agilos avec résultats mesurables — privilégier les références secteur public ou institutions]
 
-## 7. PLANNING INDICATIF
-[Timeline réaliste avec phases]
+## 7. PROPOSITION COMMERCIALE
+| Profil | Rôle | Taux journalier | Jours estimés | Montant |
+|--------|------|----------------|---------------|---------|
+| [Consultant 1] | [ex: BI Architect] | À définir | À définir | — |
+| [Consultant 2] | [ex: ETL Developer] | À définir | À définir | — |
+| **TOTAL** | | | | **À définir** |
 
-## 8. PROPOSITION COMMERCIALE
-| Profil | Taux journalier | Jours estimés | Montant |
-|--------|----------------|---------------|---------|
-| [Consultant 1] | À définir | À définir | — |
-| [Consultant 2] | À définir | À définir | — |
-| **TOTAL** | | | **À définir** |
-
-*Les tarifs seront précisés dans la version finale selon les exigences du cahier des charges.*
+*Charge et tarifs à préciser selon le cahier des charges définitif et les exigences du pouvoir adjudicateur.*
 
 ---
 *Document généré automatiquement — à personnaliser et valider avant envoi officiel*`;
