@@ -21,12 +21,8 @@ const PLACES    = ["LU0", "BEL"];
 async function fetchTedNotices(): Promise<Record<string, unknown>[]> {
   const body = {
     query: `MAIN-CPV-CODE IN (${CPV_CODES.join(",")}) AND PLACE-OF-PERFORMANCE IN (${PLACES.join(",")})`,
-    pageNumber: 1,
-    pageSize: 50,
-    scope: "ALL",
-    onlyLatestVersions: false,
-    sortColumn: "publication-number",
-    sortOrder: "DESC",
+    page: 1,
+    limit: 50,
     fields: [
       "notice-id",
       "publication-number",
@@ -39,7 +35,7 @@ async function fetchTedNotices(): Promise<Record<string, unknown>[]> {
       "procedure-type",
       "notice-type",
     ],
-    languages: ["FRA", "ENG"],
+    language: "FRA",
   };
 
   const resp = await fetch(TED_API, {
