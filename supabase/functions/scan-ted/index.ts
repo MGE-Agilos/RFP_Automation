@@ -33,9 +33,7 @@ async function fetchTedNotices(): Promise<Record<string, unknown>[]> {
       "short-description",
       "cpv-codes",
       "procedure-type",
-      "notice-type",
     ],
-    language: "FRA",
   };
 
   const resp = await fetch(TED_API, {
