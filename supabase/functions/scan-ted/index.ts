@@ -24,15 +24,19 @@ async function fetchTedNotices(): Promise<Record<string, unknown>[]> {
     page: 1,
     limit: 50,
     fields: [
-      "notice-id",
       "publication-number",
       "publication-date",
-      "title-multilingual",
-      "contracting-body",
-      "deadline-for-submission",
-      "short-description",
-      "cpv-codes",
+      "notice-title",
+      "organisation-name-buyer",
+      "deadline-receipt-tender-date-lot",
+      "deadline-time-lot",
+      "description-lot",
+      "BT-300-Lot",
+      "BT-24-Lot",
+      "classification-cpv",
       "procedure-type",
+      "notice-type",
+      "links",
     ],
   };
 
@@ -121,25 +125,40 @@ serve(async (req) => {
     for (const n of notices) {
       // Notice ID: TED uses several possible field names
       const noticeId = str(
-        n["notice-id"] ?? n["publication-number"] ?? n["ND"] ?? ""
+        n["publication-number"] ?? n["notice-identifier"] ?? n["ND"] ?? ""
       );
       if (!noticeId) continue;
 
       // Exact dedup
       if (existingIds.has(noticeId)) { skippedExact++; continue; }
 
-      const title = localeStr(n["title-multilingual"] ?? n["TI"]) || str(n.title ?? "");
+      // TED returns arrays for lot-level fields — take first element
+      const firstVal = (v: unknown) =>
+        Array.isArray(v) ? (v[0] ?? "") : (v ?? "");
+
+      const title = str(firstVal(n["notice-title"]) ?? firstVal(n["TI"]) ?? "");
       if (!title) continue;
 
-      const authority = authorityName(n["contracting-body"] ?? n["CA"]);
-      const description =
-        localeStr(n["short-description"] ?? n["TE"]) || str(n.description ?? "");
-      const deadline   = str(n["deadline-for-submission"] ?? n["DT"] ?? "");
-      const cpvRaw     = n["cpv-codes"] ?? n["CPV"] ?? [];
-      const cpvStr     = Array.isArray(cpvRaw) ? cpvRaw.join(", ") : str(cpvRaw);
-      const procedure  = str(n["procedure-type"] ?? n["PR"] ?? "");
-      const pubDate    = str(n["publication-date"] ?? n["PD"] ?? "");
-      const tedUrl     = `https://ted.europa.eu/fr/notice/${noticeId}`;
+      const authority = str(firstVal(n["organisation-name-buyer"]) ?? "");
+      const description = str(
+        firstVal(n["description-lot"]) ??
+        firstVal(n["BT-300-Lot"]) ??
+        firstVal(n["BT-24-Lot"]) ?? ""
+      );
+      // Combine date + time if both present
+      const deadlineDate = str(firstVal(n["deadline-receipt-tender-date-lot"]) ?? "");
+      const deadlineTime = str(firstVal(n["deadline-time-lot"]) ?? "");
+      const deadline = deadlineDate
+        ? deadlineTime ? `${deadlineDate} ${deadlineTime}` : deadlineDate
+        : "";
+      const cpvRaw  = n["classification-cpv"] ?? n["CPV"] ?? [];
+      const cpvStr  = Array.isArray(cpvRaw) ? cpvRaw.join(", ") : str(cpvRaw);
+      const procedure = str(firstVal(n["procedure-type"]) ?? "");
+      const pubDate   = str(n["publication-date"] ?? "");
+      // TED notice URL — prefer from API links, fallback to constructed URL
+      const links  = n["links"] as Record<string, string> | undefined;
+      const tedUrl = str(links?.["ted-notice-url"] ?? links?.["html"] ?? "")
+        || `https://ted.europa.eu/fr/notice/${noticeId}`;
 
       // Cross-platform dedup: same authority + similar title already in PMP?
       const authKey  = normKey(authority);
