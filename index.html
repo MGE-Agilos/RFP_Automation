@@ -113,11 +113,19 @@
     </div>
 
     <!-- Source filter -->
-    <select id="source-filter" class="form-select form-select-sm ms-1" style="width:auto">
-      <option value="">Toutes sources</option>
-      <option value="pmp">🇱🇺 PMP Luxembourg</option>
-      <option value="ted">🇪🇺 TED Europe</option>
-    </select>
+    <div class="btn-group btn-group-sm" role="group">
+      <button class="btn btn-outline-secondary active" data-source="">
+        <i class="bi bi-globe me-1"></i>Toutes
+      </button>
+      <button class="btn btn-sm fw-semibold" data-source="pmp"
+        style="border:1px solid #1a3d7c;color:#1a3d7c;background:transparent">
+        <i class="bi bi-flag me-1"></i>PMP
+      </button>
+      <button class="btn btn-sm fw-semibold" data-source="ted"
+        style="border:1px solid #6f42c1;color:#6f42c1;background:transparent">
+        <i class="bi bi-globe2 me-1"></i>TED
+      </button>
+    </div>
 
     <!-- Category filter -->
     <select id="cat-filter" class="form-select form-select-sm" style="width:auto">
@@ -290,12 +298,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/config.js?v=20260518"></script>
+<script src="js/config.js?v=20260519"></script>
 <script>
   window.SUPABASE_URL  = SUPABASE_URL;
   window.SUPABASE_ANON = SUPABASE_ANON;
   window.FUNCTIONS_URL = FUNCTIONS_URL;
 </script>
-<script type="module" src="js/app.js?v=20260518"></script>
+<script type="module" src="js/app.js?v=20260519"></script>
 </body>
 </html>

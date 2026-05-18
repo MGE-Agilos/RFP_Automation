@@ -15,14 +15,19 @@ const CORS = {
 
 const TED_API   = "https://api.ted.europa.eu/v3/notices/search";
 const CPV_CODES = ["48000000", "72000000", "72300000", "79000000"];
-const PLACES    = ["LU0", "BEL"];
+const COUNTRIES = ["LU", "BE"];
 
 // ── TED API call ──────────────────────────────────────────────────────────────
 async function fetchTedNotices(): Promise<Record<string, unknown>[]> {
+  // Only fetch notices from the last 6 months
+  const since = new Date();
+  since.setMonth(since.getMonth() - 6);
+  const sinceStr = since.toISOString().slice(0, 10).replace(/-/g, "");
+
   const body = {
-    query: `MAIN-CPV-CODE IN (${CPV_CODES.join(",")}) AND PLACE-OF-PERFORMANCE IN (${PLACES.join(",")})`,
+    query: `PD>=${sinceStr} AND (${CPV_CODES.map(c => `PC=${c}`).join(" OR ")}) AND (CY=LUX OR CY=BEL)`,
     page: 1,
-    limit: 50,
+    limit: 200,
     fields: [
       "publication-number",
       "publication-date",
@@ -30,9 +35,8 @@ async function fetchTedNotices(): Promise<Record<string, unknown>[]> {
       "organisation-name-buyer",
       "deadline-receipt-tender-date-lot",
       "deadline-time-lot",
-      "description-lot",
-      "BT-300-Lot",
       "BT-24-Lot",
+      "BT-300-Lot",
       "classification-cpv",
       "procedure-type",
       "notice-type",
@@ -62,16 +66,31 @@ function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : String(v ?? "").trim();
 }
 
+// Extract URL string from TED links values — handles both plain strings and {href:...} objects
+function linkUrl(v: unknown): string {
+  if (typeof v === "string") return v.trim();
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return str(o.href ?? o.url ?? "");
+  }
+  return "";
+}
+
 function localeStr(v: unknown): string {
   if (!v || typeof v !== "object") return str(v);
   const o = v as Record<string, unknown>;
+  // eForms format: {text: "...", languageID: "FRA"}
+  if (o.text) return str(o.text);
+  // Multilingual map: {FRA: "...", ENG: "..."}
   return str(o.FRA ?? o.FR ?? o.ENG ?? o.EN ?? Object.values(o)[0] ?? "");
 }
 
 function authorityName(v: unknown): string {
   if (!v || typeof v !== "object") return str(v);
   const o = v as Record<string, unknown>;
-  return str(o.officialName ?? o.name ?? o.NA ?? o.CAO ?? "");
+  // eForms format: {text: "...", languageID: "FRA"}
+  if (o.text) return str(o.text);
+  return str(o.officialName ?? o.name ?? o.NA ?? o.CAO ?? Object.values(o)[0] ?? "");
 }
 
 // ── Cross-platform dedup helpers ──────────────────────────────────────────────
@@ -100,6 +119,7 @@ serve(async (req) => {
     // ── 1. Fetch from TED ──────────────────────────────────────
     const notices = await fetchTedNotices();
     console.log(`TED returned ${notices.length} notices`);
+    if (notices.length > 0) console.log("First notice sample:", JSON.stringify(notices[0]).slice(0, 1000));
 
     // ── 2. Load existing markets for dedup ────────────────────
     const { data: existing } = await supabase
@@ -136,14 +156,14 @@ serve(async (req) => {
       const firstVal = (v: unknown) =>
         Array.isArray(v) ? (v[0] ?? "") : (v ?? "");
 
-      const title = str(firstVal(n["notice-title"]) ?? firstVal(n["TI"]) ?? "");
+      const title = localeStr(firstVal(n["notice-title"]) ?? firstVal(n["TI"]) ?? "");
       if (!title) continue;
 
-      const authority = str(firstVal(n["organisation-name-buyer"]) ?? "");
-      const description = str(
-        firstVal(n["description-lot"]) ??
-        firstVal(n["BT-300-Lot"]) ??
-        firstVal(n["BT-24-Lot"]) ?? ""
+      const authority = authorityName(firstVal(n["organisation-name-buyer"]) ?? "");
+      // Description: BT-24-Lot = lot description, BT-300-Lot = additional info
+      const description = localeStr(
+        firstVal(n["BT-24-Lot"]) ??
+        firstVal(n["BT-300-Lot"]) ?? ""
       );
       // Combine date + time if both present
       const deadlineDate = str(firstVal(n["deadline-receipt-tender-date-lot"]) ?? "");
@@ -152,13 +172,18 @@ serve(async (req) => {
         ? deadlineTime ? `${deadlineDate} ${deadlineTime}` : deadlineDate
         : "";
       const cpvRaw  = n["classification-cpv"] ?? n["CPV"] ?? [];
-      const cpvStr  = Array.isArray(cpvRaw) ? cpvRaw.join(", ") : str(cpvRaw);
-      const procedure = str(firstVal(n["procedure-type"]) ?? "");
+      const cpvStr  = Array.isArray(cpvRaw)
+        ? cpvRaw.map((c: unknown) => localeStr(c) || str(c)).filter(Boolean).join(", ")
+        : str(cpvRaw);
+      const procedure = localeStr(firstVal(n["procedure-type"]) ?? "");
       const pubDate   = str(n["publication-date"] ?? "");
-      // TED notice URL — prefer from API links, fallback to constructed URL
-      const links  = n["links"] as Record<string, string> | undefined;
-      const tedUrl = str(links?.["ted-notice-url"] ?? links?.["html"] ?? "")
-        || `https://ted.europa.eu/fr/notice/${noticeId}`;
+      // TED notice URL — links.xml.MUL gives the XML URL; derive HTML URL from notice ID
+      const links  = n["links"] as Record<string, unknown> | undefined;
+      const xmlUrl = linkUrl((links?.["xml"] as Record<string,unknown>)?.["MUL"]);
+      // Extract notice ID from XML URL if present, otherwise use noticeId directly
+      const idFromXml = xmlUrl ? xmlUrl.replace(/.*\/notice\/([^/]+)\/xml.*/, "$1") : "";
+      const canonicalId = idFromXml || noticeId;
+      const tedUrl = `https://ted.europa.eu/fr/notice/-/detail/${canonicalId}`;
 
       // Cross-platform dedup: same authority + similar title already in PMP?
       const authKey  = normKey(authority);

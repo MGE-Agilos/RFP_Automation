@@ -136,59 +136,52 @@ async function scrapeDetailPage(url: string): Promise<DetailData> {
   return { deadline, full_description, service, cpv_codes, lots };
 }
 
-// TED (ted.europa.eu) notice scraper
-async function scrapeTedDetailPage(url: string): Promise<DetailData> {
-  const resp = await fetch(url, {
-    headers: FETCH_HEADERS,
+// TED notice: fetch eForms XML and extract description + deadline
+async function fetchTedXmlData(noticeId: string): Promise<DetailData> {
+  const xmlUrl = `https://ted.europa.eu/en/notice/${noticeId}/xml`;
+  const resp = await fetch(xmlUrl, {
+    headers: { ...FETCH_HEADERS, Accept: "application/xml, text/xml, */*" },
     signal: AbortSignal.timeout(20_000),
   });
-  if (!resp.ok) return {};
+  if (!resp.ok) {
+    console.log(`TED XML fetch failed for ${noticeId}: ${resp.status}`);
+    return {};
+  }
 
-  const html = await resp.text();
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  if (!doc) return {};
+  const xml = await resp.text();
 
-  const text = doc.body?.textContent ?? "";
+  // Extract all <cbc:Description> values — pick the longest (most informative)
+  const descMatches = [...xml.matchAll(/<cbc:Description[^>]*>([^<]{20,})<\/cbc:Description>/g)];
+  const full_description = descMatches
+    .map((m) => m[1].trim())
+    .sort((a, b) => b.length - a.length)[0]
+    ?.slice(0, 3000) ?? "";
 
-  // Deadline — try dt/dd structure first (TED uses labeled definition lists)
+  // Deadline: find EndDate+EndTime pairs, pick the most recent future date (or nearest past)
+  const dateTimePattern = /<cbc:EndDate>(\d{4}-\d{2}-\d{2})<\/cbc:EndDate>[\s\S]{0,200}?<cbc:EndTime>(\d{2}:\d{2}:\d{2})/g;
+  const dateOnlyPattern = /<cbc:EndDate>(\d{4}-\d{2}-\d{2})<\/cbc:EndDate>/g;
+  const pairs: Array<{date: string; time: string}> = [];
+  let m: RegExpExecArray | null;
+  while ((m = dateTimePattern.exec(xml)) !== null) pairs.push({ date: m[1], time: m[2] });
+  if (!pairs.length) {
+    while ((m = dateOnlyPattern.exec(xml)) !== null) pairs.push({ date: m[1], time: "" });
+  }
+  // Prefer future dates; fall back to the last date in the document
+  const now = new Date().toISOString().slice(0, 10);
+  const futurePairs = pairs.filter((p) => p.date >= now);
+  const chosen = futurePairs[0] ?? pairs[pairs.length - 1];
   let deadline = "";
-  const dts = doc.querySelectorAll("dt");
-  for (const dt of dts) {
-    const label = (dt.textContent ?? "").toLowerCase();
-    if (label.includes("réception des offres") || label.includes("receipt of tenders") || label.includes("submission")) {
-      const dd = dt.nextElementSibling;
-      const val = (dd?.textContent ?? "").trim();
-      if (val && /\d/.test(val)) { deadline = val; break; }
-    }
-  }
-  // Fallback: section IV.2.2 regex
-  if (!deadline) {
-    const m = text.match(
-      /IV\.2\.2[^:]*:\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{4}(?:[^\n]{0,20})?)/i
-    );
-    if (m) deadline = m[1].trim();
+  if (chosen) {
+    // Convert yyyy-mm-dd → dd/mm/yyyy
+    const [y, mo, d] = chosen.date.split("-");
+    deadline = `${d}/${mo}/${y}${chosen.time ? " " + chosen.time.slice(0, 5) : ""}`;
   }
 
-  // Full description — section II.2.4 then II.1.4
-  let full_description = "";
-  const descM =
-    text.match(/II\.2\.4[^:\n]*[:\n]\s*([^\n]{30,})/i) ||
-    text.match(/II\.1\.4[^:\n]*[:\n]\s*([^\n]{30,})/i);
-  if (descM) full_description = descM[1].slice(0, 3000).trim();
+  // CPV codes from <cbc:ItemClassificationCode>
+  const cpvMatches = [...xml.matchAll(/<cbc:ItemClassificationCode[^>]*>(\d{8})<\/cbc:ItemClassificationCode>/g)];
+  const cpv_codes = [...new Set(cpvMatches.map((m) => m[1]))].slice(0, 10).join(", ");
 
-  // Service — section I.1 authority name/department
-  const serviceM = text.match(/I\.1[^:\n]*[:\n]\s*([^\n]{5,100})/i);
-  const service = serviceM ? serviceM[1].trim() : "";
-
-  // CPV codes
-  const cpvMatches = text.match(/\b\d{8}(-\d)?\b/g) ?? [];
-  const cpv_codes = [...new Set(cpvMatches)].slice(0, 10).join(", ");
-
-  // Lots
-  const lotsM = text.match(/lots?\s*:\s*([^\n|]{3,60})/i);
-  const lots = lotsM ? lotsM[1].trim() : "";
-
-  return { deadline, full_description, service, cpv_codes, lots };
+  return { full_description, deadline, cpv_codes };
 }
 
 // ── Serve ────────────────────────────────────────────────────────────────────
@@ -231,13 +224,28 @@ serve(async (req) => {
     await supabase.from("markets").update({ status: "analyzing" }).eq("id", id);
 
     let detailData: DetailData = {};
-    if (market.resolved_url) {
+    const isTed = (market.source === "ted") ||
+      (market.resolved_url ?? "").includes("ted.europa.eu");
+
+    if (isTed && market.market_id) {
+      // TED: fetch eForms XML for structured description + deadline
       try {
-        const isTed = (market.source === "ted") ||
-          market.resolved_url.includes("ted.europa.eu");
-        detailData = isTed
-          ? await scrapeTedDetailPage(market.resolved_url)
-          : await scrapeDetailPage(market.resolved_url);
+        detailData = await fetchTedXmlData(market.market_id);
+        await supabase.from("markets").update({
+          full_description: detailData.full_description || market.description || "",
+          deadline:         detailData.deadline         || market.deadline    || "",
+          cpv_codes:        detailData.cpv_codes        || market.cpv_codes   || "",
+        }).eq("id", id);
+      } catch (e) {
+        console.error("TED XML fetch error:", e);
+        await supabase.from("markets").update({
+          full_description: market.description || "",
+        }).eq("id", id);
+      }
+    } else if (!isTed && market.resolved_url) {
+      // PMP: scrape the detail page for richer data
+      try {
+        detailData = await scrapeDetailPage(market.resolved_url);
         await supabase.from("markets").update({
           deadline:         detailData.deadline         || market.deadline,
           full_description: detailData.full_description || market.description,
@@ -246,7 +254,7 @@ serve(async (req) => {
           lots:             detailData.lots,
         }).eq("id", id);
       } catch (e) {
-        console.error("Detail scrape error:", e);
+        console.error("PMP scrape error:", e);
       }
     }
 

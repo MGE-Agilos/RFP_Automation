@@ -480,9 +480,22 @@ function setupFilters() {
       await loadMarkets();
     });
   });
-  document.getElementById("source-filter").addEventListener("change", async (e) => {
-    activeSource = e.target.value;
-    await loadMarkets();
+  document.querySelectorAll("[data-source]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      document.querySelectorAll("[data-source]").forEach((b) => {
+        const src = b.dataset.source;
+        b.classList.remove("active");
+        if (src === "pmp") { b.style.background = "transparent"; b.style.color = "#1a3d7c"; }
+        if (src === "ted") { b.style.background = "transparent"; b.style.color = "#6f42c1"; }
+        if (src === "")   { b.classList.remove("btn-secondary"); b.classList.add("btn-outline-secondary"); }
+      });
+      const src = btn.dataset.source;
+      btn.classList.add("active");
+      if (src === "pmp") { btn.style.background = "#1a3d7c"; btn.style.color = "#fff"; }
+      if (src === "ted") { btn.style.background = "#6f42c1"; btn.style.color = "#fff"; }
+      activeSource = src;
+      await loadMarkets();
+    });
   });
   document.getElementById("cat-filter").addEventListener("change", async (e) => {
     activeCategory = e.target.value;
