@@ -82,7 +82,7 @@ MARCHÉS NON PERTINENTS (nous NE POUVONS PAS répondre) :
 ✗ Services juridiques (sauf si IT-juridique)
 `;
 
-// ── Detail page scraper ──────────────────────────────────────────────────────
+// ── Detail page scrapers ─────────────────────────────────────────────────────
 interface DetailData {
   deadline?: string;
   full_description?: string;
@@ -92,6 +92,7 @@ interface DetailData {
   procedure_type?: string;
 }
 
+// PMP Luxembourg scraper
 async function scrapeDetailPage(url: string): Promise<DetailData> {
   const resp = await fetch(url, {
     headers: FETCH_HEADERS,
@@ -131,6 +132,61 @@ async function scrapeDetailPage(url: string): Promise<DetailData> {
 
   // Lots
   const lots = extractAfterLabel(/Lots?\s*:\s*([^\n|]+)/i);
+
+  return { deadline, full_description, service, cpv_codes, lots };
+}
+
+// TED (ted.europa.eu) notice scraper
+async function scrapeTedDetailPage(url: string): Promise<DetailData> {
+  const resp = await fetch(url, {
+    headers: FETCH_HEADERS,
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!resp.ok) return {};
+
+  const html = await resp.text();
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  if (!doc) return {};
+
+  const text = doc.body?.textContent ?? "";
+
+  // Deadline — try dt/dd structure first (TED uses labeled definition lists)
+  let deadline = "";
+  const dts = doc.querySelectorAll("dt");
+  for (const dt of dts) {
+    const label = (dt.textContent ?? "").toLowerCase();
+    if (label.includes("réception des offres") || label.includes("receipt of tenders") || label.includes("submission")) {
+      const dd = dt.nextElementSibling;
+      const val = (dd?.textContent ?? "").trim();
+      if (val && /\d/.test(val)) { deadline = val; break; }
+    }
+  }
+  // Fallback: section IV.2.2 regex
+  if (!deadline) {
+    const m = text.match(
+      /IV\.2\.2[^:]*:\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{4}(?:[^\n]{0,20})?)/i
+    );
+    if (m) deadline = m[1].trim();
+  }
+
+  // Full description — section II.2.4 then II.1.4
+  let full_description = "";
+  const descM =
+    text.match(/II\.2\.4[^:\n]*[:\n]\s*([^\n]{30,})/i) ||
+    text.match(/II\.1\.4[^:\n]*[:\n]\s*([^\n]{30,})/i);
+  if (descM) full_description = descM[1].slice(0, 3000).trim();
+
+  // Service — section I.1 authority name/department
+  const serviceM = text.match(/I\.1[^:\n]*[:\n]\s*([^\n]{5,100})/i);
+  const service = serviceM ? serviceM[1].trim() : "";
+
+  // CPV codes
+  const cpvMatches = text.match(/\b\d{8}(-\d)?\b/g) ?? [];
+  const cpv_codes = [...new Set(cpvMatches)].slice(0, 10).join(", ");
+
+  // Lots
+  const lotsM = text.match(/lots?\s*:\s*([^\n|]{3,60})/i);
+  const lots = lotsM ? lotsM[1].trim() : "";
 
   return { deadline, full_description, service, cpv_codes, lots };
 }
@@ -177,7 +233,11 @@ serve(async (req) => {
     let detailData: DetailData = {};
     if (market.resolved_url) {
       try {
-        detailData = await scrapeDetailPage(market.resolved_url);
+        const isTed = (market.source === "ted") ||
+          market.resolved_url.includes("ted.europa.eu");
+        detailData = isTed
+          ? await scrapeTedDetailPage(market.resolved_url)
+          : await scrapeDetailPage(market.resolved_url);
         await supabase.from("markets").update({
           deadline:         detailData.deadline         || market.deadline,
           full_description: detailData.full_description || market.description,

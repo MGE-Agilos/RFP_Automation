@@ -5,12 +5,13 @@ const { createClient } = window.supabase;
 const db = createClient(window.SUPABASE_URL, window.SUPABASE_ANON, { db: { schema: "rfp" } });
 
 // ── State ─────────────────────────────────────────────────────
-let markets     = [];
-let activeFilter = "all";
-let activeCategory = "";
+let markets      = [];
+let activeFilter  = "all";
+let activeCategory  = "";
 let activeDateFilter = "all";
-let detailMarketId = null;   // currently open in detail modal
-let realtimeSub  = null;
+let activeSource    = "";   // "" | "pmp" | "ted"
+let detailMarketId  = null;
+let realtimeSub     = null;
 
 // ── Boot ──────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
@@ -25,12 +26,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 // ── Data ──────────────────────────────────────────────────────
 async function loadMarkets() {
   let q = db.from("markets").select("*").order("created_at", { ascending: false });
-  if (activeFilter === "relevant")     q = q.eq("is_relevant", true);
+  if (activeFilter === "relevant")          q = q.eq("is_relevant", true);
   else if (activeFilter === "not_relevant") q = q.eq("is_relevant", false);
-  else if (activeFilter === "pending") q = q.in("status", ["pending","analyzing"]);
-  else if (activeFilter === "rfp")     q = q.not("rfp_content", "is", null);
-  else if (activeFilter === "no_go")   q = q.eq("no_go", true);
+  else if (activeFilter === "pending")      q = q.in("status", ["pending","analyzing"]);
+  else if (activeFilter === "rfp")          q = q.not("rfp_content", "is", null);
+  else if (activeFilter === "no_go")        q = q.eq("no_go", true);
   if (activeCategory) q = q.eq("category", activeCategory);
+  if (activeSource === "pmp") q = q.or("source.eq.pmp,source.is.null");
+  else if (activeSource === "ted") q = q.eq("source", "ted");
 
   const { data, error } = await q;
   if (error) { console.error(error); return; }
@@ -151,7 +154,69 @@ window.scanPortal = async function () {
     console.error(err);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<i class="bi bi-cloud-download me-1"></i>Scanner le portail`;
+    btn.innerHTML = `<i class="bi bi-cloud-download me-1"></i>PMP Luxembourg`;
+    setTimeout(() => banner.classList.add("d-none"), 4000);
+  }
+};
+
+window.scanTed = async function () {
+  const btn = document.getElementById("btn-scan-ted");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Scan TED…`;
+
+  const banner = document.getElementById("scan-banner");
+  banner.classList.remove("d-none");
+  document.getElementById("scan-status-text").textContent = "Recherche sur TED (ted.europa.eu)…";
+  document.getElementById("scan-progress-text").textContent = "";
+
+  try {
+    const scanResp = await callFunction("scan-ted", {});
+    if (!scanResp.ok) {
+      const err = await scanResp.json().catch(() => ({}));
+      throw new Error(err.error || scanResp.statusText);
+    }
+    const { markets_new, skipped_duplicates, inserted_ids } = await scanResp.json();
+
+    document.getElementById("scan-status-text").textContent =
+      `TED : ${markets_new} nouveau(x) marché(s) (${skipped_duplicates ?? 0} doublons ignorés). Analyse…`;
+
+    await loadLastScan();
+
+    if (markets_new === 0) {
+      showToast("Aucun nouveau marché TED depuis le dernier scan.", "info");
+      return;
+    }
+
+    showToast(`${markets_new} nouveaux marchés TED. Analyse Claude en cours…`, "success");
+
+    document.getElementById("scan-progress-text").textContent =
+      `(0 / ${inserted_ids.length} analysés)`;
+
+    let done = 0;
+    const concurrency = 3;
+    for (let i = 0; i < inserted_ids.length; i += concurrency) {
+      const batch = inserted_ids.slice(i, i + concurrency);
+      await Promise.all(batch.map((id) =>
+        callFunction("process-market", { market_id: id })
+          .then(() => {
+            done++;
+            document.getElementById("scan-progress-text").textContent =
+              `(${done} / ${inserted_ids.length} analysés)`;
+          })
+          .catch(console.error)
+      ));
+    }
+
+    document.getElementById("scan-status-text").textContent = "Analyse TED terminée.";
+    document.getElementById("scan-progress-text").textContent = "";
+    showToast("Analyse de tous les marchés TED terminée.", "success");
+
+  } catch (err) {
+    showToast("Erreur TED : " + err.message, "danger");
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-cloud-download me-1"></i>TED Europe`;
     setTimeout(() => banner.classList.add("d-none"), 4000);
   }
 };
@@ -205,21 +270,31 @@ function scoreBar(score) {
   </div>`;
 }
 
+const SOURCE_BADGE = {
+  ted: `<span class="badge badge-ted" title="Source : TED Europe"><i class="bi bi-globe2 me-1"></i>TED</span>`,
+  pmp: `<span class="badge badge-pmp" title="Source : PMP Luxembourg"><i class="bi bi-flag me-1"></i>PMP</span>`,
+};
+
 function card(m) {
-  const catColor   = CAT_COLOR[m.category] ?? "secondary";
-  const hasRFP     = !!m.rfp_content;
-  const analyzing  = m.status === "analyzing" || m.status === "pending";
-  const deadline   = m.deadline
+  const catColor    = CAT_COLOR[m.category] ?? "secondary";
+  const hasRFP      = !!m.rfp_content;
+  const analyzing   = m.status === "analyzing" || m.status === "pending";
+  const isTed       = m.source === "ted";
+  const sourceBadge = SOURCE_BADGE[m.source ?? "pmp"] ?? SOURCE_BADGE.pmp;
+  const deadline    = m.deadline
     ? `<div class="small text-danger mt-1"><i class="bi bi-calendar3 me-1"></i>${m.deadline}</div>` : "";
-  const authority  = m.contracting_authority
+  const authority   = m.contracting_authority
     ? `<div class="small text-muted text-truncate"><i class="bi bi-building me-1"></i>${esc(m.contracting_authority)}</div>` : "";
 
   return `
     <div class="col-xl-4 col-lg-6">
-      <div class="card h-100 border-0 shadow-sm market-card" data-id="${m.id}">
+      <div class="card h-100 border-0 shadow-sm market-card${isTed ? " source-ted" : ""}" data-id="${m.id}">
         <div class="card-body pb-2">
           <div class="d-flex justify-content-between align-items-start mb-2 gap-1">
-            <span class="badge bg-${catColor} text-dark">${m.category || "—"}</span>
+            <div class="d-flex gap-1 flex-wrap">
+              <span class="badge bg-${catColor} text-dark">${m.category || "—"}</span>
+              ${sourceBadge}
+            </div>
             ${statusBadge(m)}
           </div>
           <h6 class="card-title mb-1 lh-sm fw-semibold" title="${esc(m.title)}">
@@ -278,6 +353,8 @@ function fillDetailModal(m) {
   const catColor = CAT_COLOR[m.category] ?? "secondary";
   document.getElementById("d-category").textContent        = m.category || "";
   document.getElementById("d-category").className         = `badge bg-${catColor} text-dark`;
+  const srcBadgeEl = document.getElementById("d-source");
+  if (srcBadgeEl) srcBadgeEl.innerHTML = SOURCE_BADGE[m.source ?? "pmp"] ?? SOURCE_BADGE.pmp;
   document.getElementById("d-procedure").textContent       = PROC_LABEL[m.procedure] || m.procedure || "";
   document.getElementById("d-status").innerHTML            = statusBadge(m);
   document.getElementById("d-title").textContent           = m.title;
@@ -402,6 +479,10 @@ function setupFilters() {
       activeFilter = btn.dataset.filter;
       await loadMarkets();
     });
+  });
+  document.getElementById("source-filter").addEventListener("change", async (e) => {
+    activeSource = e.target.value;
+    await loadMarkets();
   });
   document.getElementById("cat-filter").addEventListener("change", async (e) => {
     activeCategory = e.target.value;

@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS rfp.portal_scans (
     keywords      JSONB,
     markets_found INTEGER DEFAULT 0,
     markets_new   INTEGER DEFAULT 0,
+    source        TEXT DEFAULT 'pmp',  -- 'pmp' | 'ted'
     scanned_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS rfp.markets (
     rfp_content           TEXT,
     rfp_generated_at      TIMESTAMPTZ,
     error_message         TEXT,
+    source                TEXT DEFAULT 'pmp',  -- 'pmp' | 'ted'
     created_at            TIMESTAMPTZ DEFAULT NOW(),
     updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
@@ -88,9 +90,10 @@ CREATE POLICY "anon_all_markets"      ON rfp.markets      FOR ALL TO anon USING 
 ALTER PUBLICATION supabase_realtime ADD TABLE rfp.markets;
 ALTER PUBLICATION supabase_realtime ADD TABLE rfp.portal_scans;
 
--- ── No-Go human decision ───────────────────────────────────────
--- Allows team to mark a market as no-go (human override, independent of Claude's relevance score).
--- For existing deployments, run these two lines manually in SQL Editor:
-ALTER TABLE rfp.markets ADD COLUMN IF NOT EXISTS no_go        BOOLEAN DEFAULT false;
-ALTER TABLE rfp.markets ADD COLUMN IF NOT EXISTS no_go_reason TEXT;
-CREATE INDEX IF NOT EXISTS idx_rfp_markets_no_go ON rfp.markets(no_go);
+-- ── Migrations (run manually on existing deployments) ─────────────────────────
+ALTER TABLE rfp.markets      ADD COLUMN IF NOT EXISTS no_go        BOOLEAN DEFAULT false;
+ALTER TABLE rfp.markets      ADD COLUMN IF NOT EXISTS no_go_reason TEXT;
+ALTER TABLE rfp.markets      ADD COLUMN IF NOT EXISTS source       TEXT DEFAULT 'pmp';
+ALTER TABLE rfp.portal_scans ADD COLUMN IF NOT EXISTS source       TEXT DEFAULT 'pmp';
+CREATE INDEX IF NOT EXISTS idx_rfp_markets_no_go  ON rfp.markets(no_go);
+CREATE INDEX IF NOT EXISTS idx_rfp_markets_source ON rfp.markets(source);
