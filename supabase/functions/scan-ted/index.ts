@@ -79,14 +79,23 @@ function linkUrl(v: unknown): string {
 // Preferred display languages in order (3-letter then 2-letter ISO codes)
 const LANG_PREF = ["FRA","FR","ENG","EN","NLD","NL","DEU","DE","ITA","IT","SPA","ES"];
 
-// Extract text from a single multilingual object {languageID, text} or {FRA, ENG, ...}
+// Extract text from a multilingual object.
+// TED API uses lowercase keys: {fra: "...", eng: "...", nld: ["a","b"]}
 function localeStr(v: unknown): string {
   if (!v || typeof v !== "object") return str(v);
   const o = v as Record<string, unknown>;
   if (o.text) return str(o.text);
-  for (const lang of LANG_PREF) { if (o[lang]) return str(o[lang]); }
-  const first = Object.values(o).find((x) => x && typeof x === "string" && x.trim());
-  return first ? str(first) : "";
+  // Try both upper and lower case language keys
+  for (const lang of LANG_PREF) {
+    const val = o[lang] ?? o[lang.toLowerCase()];
+    if (val) return Array.isArray(val) ? val.map(String).join(". ") : str(val);
+  }
+  // Fallback: first non-empty value
+  for (const val of Object.values(o)) {
+    if (Array.isArray(val) && val.length) return val.map(String).join(". ");
+    if (val && typeof val === "string" && val.trim()) return val.trim();
+  }
+  return "";
 }
 
 // Search an array of {languageID, text} objects for the preferred language
