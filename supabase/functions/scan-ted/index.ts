@@ -27,7 +27,7 @@ async function fetchTedNotices(): Promise<Record<string, unknown>[]> {
   const body = {
     query: `PD>=${sinceStr} AND (${CPV_CODES.map(c => `PC=${c}`).join(" OR ")}) AND (CY=LUX OR CY=BEL)`,
     page: 1,
-    limit: 200,
+    limit: 50,
     fields: [
       "publication-number",
       "publication-date",

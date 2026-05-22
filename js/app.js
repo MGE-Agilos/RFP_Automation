@@ -189,19 +189,20 @@ window.scanTed = async function () {
 
     showToast(`${markets_new} nouveaux marchés TED. Analyse Claude en cours…`, "success");
 
+    const idsToAnalyze = inserted_ids.slice(0, 50);
     document.getElementById("scan-progress-text").textContent =
-      `(0 / ${inserted_ids.length} analysés)`;
+      `(0 / ${idsToAnalyze.length} analysés)`;
 
     let done = 0;
     const concurrency = 3;
-    for (let i = 0; i < inserted_ids.length; i += concurrency) {
-      const batch = inserted_ids.slice(i, i + concurrency);
+    for (let i = 0; i < idsToAnalyze.length; i += concurrency) {
+      const batch = idsToAnalyze.slice(i, i + concurrency);
       await Promise.all(batch.map((id) =>
         callFunction("process-market", { market_id: id })
           .then(() => {
             done++;
             document.getElementById("scan-progress-text").textContent =
-              `(${done} / ${inserted_ids.length} analysés)`;
+              `(${done} / ${idsToAnalyze.length} analysés)`;
           })
           .catch(console.error)
       ));
