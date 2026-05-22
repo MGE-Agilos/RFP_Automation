@@ -76,21 +76,25 @@ function linkUrl(v: unknown): string {
   return "";
 }
 
+// Preferred display languages in order
+const LANG_PREF = ["FRA","FR","ENG","EN","NLD","NL","DEU","DE","ITA","IT","SPA","ES"];
+
 function localeStr(v: unknown): string {
   if (!v || typeof v !== "object") return str(v);
   const o = v as Record<string, unknown>;
   // eForms format: {text: "...", languageID: "FRA"}
   if (o.text) return str(o.text);
-  // Multilingual map: {FRA: "...", ENG: "..."}
-  return str(o.FRA ?? o.FR ?? o.ENG ?? o.EN ?? Object.values(o)[0] ?? "");
+  // Multilingual map: try preferred languages, then any non-empty value
+  for (const lang of LANG_PREF) { if (o[lang]) return str(o[lang]); }
+  const first = Object.values(o).find((x) => x && typeof x === "string" && x.trim());
+  return first ? str(first) : "";
 }
 
 function authorityName(v: unknown): string {
   if (!v || typeof v !== "object") return str(v);
   const o = v as Record<string, unknown>;
-  // eForms format: {text: "...", languageID: "FRA"}
   if (o.text) return str(o.text);
-  return str(o.officialName ?? o.name ?? o.NA ?? o.CAO ?? Object.values(o)[0] ?? "");
+  return str(o.officialName ?? o.name ?? o.NA ?? o.CAO ?? "");
 }
 
 // ── Cross-platform dedup helpers ──────────────────────────────────────────────
