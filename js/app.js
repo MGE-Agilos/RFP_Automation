@@ -12,6 +12,7 @@ let activeDateFilter = "all";
 let activeSource    = "";   // "" | "pmp" | "ted"
 let detailMarketId  = null;
 let realtimeSub     = null;
+let scanCancelled   = false;
 
 // ── Boot ──────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
@@ -95,7 +96,14 @@ function subscribeRealtime() {
 }
 
 // ── Scanner ───────────────────────────────────────────────────
+window.stopScan = function () {
+  scanCancelled = true;
+  document.getElementById("scan-status-text").textContent = "Arrêt en cours…";
+  document.getElementById("btn-stop-scan").disabled = true;
+};
+
 window.scanPortal = async function () {
+  scanCancelled = false;
   const btn = document.getElementById("btn-scan");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Scan en cours…`;
@@ -133,6 +141,7 @@ window.scanPortal = async function () {
     let done = 0;
     const concurrency = 3;
     for (let i = 0; i < inserted_ids.length; i += concurrency) {
+      if (scanCancelled) break;
       const batch = inserted_ids.slice(i, i + concurrency);
       await Promise.all(batch.map((id) =>
         callFunction("process-market", { market_id: id })
@@ -145,7 +154,7 @@ window.scanPortal = async function () {
       ));
     }
 
-    document.getElementById("scan-status-text").textContent = "Analyse terminée.";
+    document.getElementById("scan-status-text").textContent = scanCancelled ? "Scan arrêté." : "Analyse terminée.";
     document.getElementById("scan-progress-text").textContent = "";
     showToast("Analyse de tous les nouveaux marchés terminée.", "success");
 
@@ -160,6 +169,7 @@ window.scanPortal = async function () {
 };
 
 window.scanTed = async function () {
+  scanCancelled = false;
   const btn = document.getElementById("btn-scan-ted");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Scan TED…`;
@@ -196,6 +206,7 @@ window.scanTed = async function () {
     let done = 0;
     const concurrency = 3;
     for (let i = 0; i < idsToAnalyze.length; i += concurrency) {
+      if (scanCancelled) break;
       const batch = idsToAnalyze.slice(i, i + concurrency);
       await Promise.all(batch.map((id) =>
         callFunction("process-market", { market_id: id })
@@ -208,7 +219,7 @@ window.scanTed = async function () {
       ));
     }
 
-    document.getElementById("scan-status-text").textContent = "Analyse TED terminée.";
+    document.getElementById("scan-status-text").textContent = scanCancelled ? "Scan arrêté." : "Analyse TED terminée.";
     document.getElementById("scan-progress-text").textContent = "";
     showToast("Analyse de tous les marchés TED terminée.", "success");
 

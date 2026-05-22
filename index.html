@@ -83,10 +83,13 @@
 <div class="container-fluid px-4 py-4">
 
   <!-- Scan progress banner (hidden by default) -->
-  <div id="scan-banner" class="alert alert-info alert-dismissible d-none mb-3 py-2 px-3">
-    <span class="spinner-border spinner-border-sm me-2"></span>
+  <div id="scan-banner" class="alert alert-info d-none mb-3 py-2 px-3 d-flex align-items-center gap-2">
+    <span class="spinner-border spinner-border-sm flex-shrink-0"></span>
     <strong id="scan-status-text">Scan en cours…</strong>
-    <span class="ms-2 text-muted small" id="scan-progress-text"></span>
+    <span class="text-muted small" id="scan-progress-text"></span>
+    <button id="btn-stop-scan" class="btn btn-sm btn-danger ms-auto" onclick="stopScan()">
+      <i class="bi bi-stop-circle me-1"></i>Arrêter
+    </button>
   </div>
 
   <!-- Filters + Search -->
@@ -298,12 +301,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/config.js?v=20260519"></script>
+<script src="js/config.js?v=20260522"></script>
 <script>
   window.SUPABASE_URL  = SUPABASE_URL;
   window.SUPABASE_ANON = SUPABASE_ANON;
   window.FUNCTIONS_URL = FUNCTIONS_URL;
 </script>
-<script type="module" src="js/app.js?v=20260519"></script>
+<script type="module" src="js/app.js?v=20260522"></script>
 </body>
 </html>
