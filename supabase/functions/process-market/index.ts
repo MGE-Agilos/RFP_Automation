@@ -84,6 +84,7 @@ MARCHÉS NON PERTINENTS (nous NE POUVONS PAS répondre) :
 
 // ── Detail page scrapers ─────────────────────────────────────────────────────
 interface DetailData {
+  title?: string;
   deadline?: string;
   full_description?: string;
   service?: string;
@@ -150,6 +151,12 @@ async function fetchTedXmlData(noticeId: string): Promise<DetailData> {
 
   const xml = await resp.text();
 
+  // Extract French or English title from XML (override the API-language title)
+  const titleFra = xml.match(/<cbc:Name\s+languageID="FRA"\s*>([^<]{5,})<\/cbc:Name>/)?.[1]?.trim();
+  const titleEng = xml.match(/<cbc:Name\s+languageID="ENG"\s*>([^<]{5,})<\/cbc:Name>/)?.[1]?.trim();
+  const titleNld = xml.match(/<cbc:Name\s+languageID="NLD"\s*>([^<]{5,})<\/cbc:Name>/)?.[1]?.trim();
+  const xmlTitle = titleFra || titleEng || titleNld || "";
+
   // Extract all <cbc:Description> values — pick the longest (most informative)
   const descMatches = [...xml.matchAll(/<cbc:Description[^>]*>([^<]{20,})<\/cbc:Description>/g)];
   const full_description = descMatches
@@ -181,7 +188,7 @@ async function fetchTedXmlData(noticeId: string): Promise<DetailData> {
   const cpvMatches = [...xml.matchAll(/<cbc:ItemClassificationCode[^>]*>(\d{8})<\/cbc:ItemClassificationCode>/g)];
   const cpv_codes = [...new Set(cpvMatches.map((m) => m[1]))].slice(0, 10).join(", ");
 
-  return { full_description, deadline, cpv_codes };
+  return { full_description, deadline, cpv_codes, title: xmlTitle };
 }
 
 // ── Serve ────────────────────────────────────────────────────────────────────
@@ -232,6 +239,7 @@ serve(async (req) => {
       try {
         detailData = await fetchTedXmlData(market.market_id);
         await supabase.from("markets").update({
+          ...(detailData.title && { title: detailData.title }),
           full_description: detailData.full_description || market.description || "",
           deadline:         detailData.deadline         || market.deadline    || "",
           cpv_codes:        detailData.cpv_codes        || market.cpv_codes   || "",
