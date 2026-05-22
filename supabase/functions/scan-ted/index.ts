@@ -76,18 +76,39 @@ function linkUrl(v: unknown): string {
   return "";
 }
 
-// Preferred display languages in order
+// Preferred display languages in order (3-letter then 2-letter ISO codes)
 const LANG_PREF = ["FRA","FR","ENG","EN","NLD","NL","DEU","DE","ITA","IT","SPA","ES"];
 
+// Extract text from a single multilingual object {languageID, text} or {FRA, ENG, ...}
 function localeStr(v: unknown): string {
   if (!v || typeof v !== "object") return str(v);
   const o = v as Record<string, unknown>;
-  // eForms format: {text: "...", languageID: "FRA"}
   if (o.text) return str(o.text);
-  // Multilingual map: try preferred languages, then any non-empty value
   for (const lang of LANG_PREF) { if (o[lang]) return str(o[lang]); }
   const first = Object.values(o).find((x) => x && typeof x === "string" && x.trim());
   return first ? str(first) : "";
+}
+
+// Search an array of {languageID, text} objects for the preferred language
+function localeFromArray(v: unknown): string {
+  if (!Array.isArray(v) || v.length === 0) return localeStr(v);
+  for (const lang of LANG_PREF) {
+    const match = v.find((item: unknown) => {
+      if (!item || typeof item !== "object") return false;
+      const lid = str((item as Record<string,unknown>).languageID).toUpperCase();
+      return lid === lang || lid === lang.slice(0, 2);
+    });
+    if (match) return str((match as Record<string,unknown>).text ?? "");
+  }
+  // Fallback: first element
+  const o = v[0] as Record<string, unknown>;
+  return str(o?.text ?? "") || localeStr(v[0]);
+}
+
+// Pick best value from field that may be a scalar, object, or array of {languageID,text}
+function pickLocale(v: unknown): string {
+  if (Array.isArray(v)) return localeFromArray(v);
+  return localeStr(v);
 }
 
 function authorityName(v: unknown): string {
@@ -160,15 +181,12 @@ serve(async (req) => {
       const firstVal = (v: unknown) =>
         Array.isArray(v) ? (v[0] ?? "") : (v ?? "");
 
-      const title = localeStr(firstVal(n["notice-title"]) ?? firstVal(n["TI"]) ?? "");
+      const title = pickLocale(n["notice-title"] ?? n["TI"] ?? "");
       if (!title) continue;
 
       const authority = authorityName(firstVal(n["organisation-name-buyer"]) ?? "");
       // Description: BT-24-Lot = lot description, BT-300-Lot = additional info
-      const description = localeStr(
-        firstVal(n["BT-24-Lot"]) ??
-        firstVal(n["BT-300-Lot"]) ?? ""
-      );
+      const description = pickLocale(n["BT-24-Lot"] ?? n["BT-300-Lot"] ?? "");
       // Combine date + time if both present
       const deadlineDate = str(firstVal(n["deadline-receipt-tender-date-lot"]) ?? "");
       const deadlineTime = str(firstVal(n["deadline-time-lot"]) ?? "");
