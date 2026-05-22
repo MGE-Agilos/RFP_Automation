@@ -151,11 +151,14 @@ async function fetchTedXmlData(noticeId: string): Promise<DetailData> {
 
   const xml = await resp.text();
 
-  // Extract French or English title from XML (override the API-language title)
-  const titleFra = xml.match(/<cbc:Name\s+languageID="FRA"\s*>([^<]{5,})<\/cbc:Name>/)?.[1]?.trim();
-  const titleEng = xml.match(/<cbc:Name\s+languageID="ENG"\s*>([^<]{5,})<\/cbc:Name>/)?.[1]?.trim();
-  const titleNld = xml.match(/<cbc:Name\s+languageID="NLD"\s*>([^<]{5,})<\/cbc:Name>/)?.[1]?.trim();
-  const xmlTitle = titleFra || titleEng || titleNld || "";
+  // Extract French or English title from XML (handles 2-letter "FR" and 3-letter "FRA" codes)
+  const namePattern = (codes: string[]) => {
+    const alt = codes.join("|");
+    const rx = new RegExp(`<cbc:Name\\s+languageID=["'](${alt})["'][^>]*>([^<]{5,})<\\/cbc:Name>`, "i");
+    return xml.match(rx)?.[2]?.trim() ?? "";
+  };
+  const xmlTitle = namePattern(["FRA","FR"]) || namePattern(["ENG","EN"]) || namePattern(["NLD","NL"]) || "";
+  if (xmlTitle) console.log(`XML title found: "${xmlTitle.slice(0,80)}"`);
 
   // Extract all <cbc:Description> values — pick the longest (most informative)
   const descMatches = [...xml.matchAll(/<cbc:Description[^>]*>([^<]{20,})<\/cbc:Description>/g)];

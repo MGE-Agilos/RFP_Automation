@@ -144,7 +144,12 @@ serve(async (req) => {
     // ── 1. Fetch from TED ──────────────────────────────────────
     const notices = await fetchTedNotices();
     console.log(`TED returned ${notices.length} notices`);
-    if (notices.length > 0) console.log("First notice sample:", JSON.stringify(notices[0]).slice(0, 1000));
+    if (notices.length > 0) {
+      const n0 = notices[0];
+      console.log("notice-title raw:", JSON.stringify(n0["notice-title"]));
+      console.log("BT-24-Lot raw:", JSON.stringify(n0["BT-24-Lot"]));
+      console.log("organisation-name-buyer raw:", JSON.stringify(n0["organisation-name-buyer"]));
+    }
 
     // ── 2. Load existing markets for dedup ────────────────────
     const { data: existing } = await supabase
